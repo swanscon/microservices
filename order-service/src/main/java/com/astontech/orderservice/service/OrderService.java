@@ -6,6 +6,8 @@ import com.astontech.orderservice.dto.OrderRequest;
 import com.astontech.orderservice.model.Order;
 import com.astontech.orderservice.model.OrderLineItems;
 import com.astontech.orderservice.repository.OrderRepository;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,8 +26,9 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
+    private final Tracer tracer;
 
-    public void placeOrder(OrderRequest orderRequest) {
+    public String placeOrder(OrderRequest orderRequest) {
         Order order = new Order();
         order.setOrderNumber(UUID.randomUUID().toString());
 
@@ -39,23 +42,29 @@ public class OrderService {
                 .map(OrderLineItems::getSkuCode)
                 .toList();
 
-        //Call Inventory Service, and place order if product is in stock
-        InventoryResponse[] inventoryResponseArray = webClientBuilder.build().get()
-                .uri("http://inventory-service/api/inventory",
-                        uriBuilder -> uriBuilder.queryParam("skuCode", skuCodes).build())
+        Span inventoryServiceLookup = tracer.nextSpan().name("InventoryServiceLookup");
+
+        try(Tracer.SpanInScope spanInScope = tracer.withSpan(inventoryServiceLookup.start())) {
+            //Call Inventory Service, and place order if product is in stock
+            InventoryResponse[] inventoryResponseArray = webClientBuilder.build().get()
+                .uri("http://inventory-service/api/inventory", uriBuilder -> uriBuilder
+                        .queryParam("skuCode", skuCodes).build())
                 .retrieve()
                 .bodyToMono(InventoryResponse[].class)
                 .block();
-
-        boolean allProductsInStock = Arrays.stream(inventoryResponseArray)
+            boolean allProductsInStock = Arrays.stream(inventoryResponseArray)
                 .allMatch(InventoryResponse::isInStock);
-
-        if(allProductsInStock) {
-            orderRepository.save(order);
-            log.info("Order {} saved", order.getOrderNumber());
-        } else {
-            throw new IllegalArgumentException("Product not in stock.");
+            if(allProductsInStock) {
+                orderRepository.save(order);
+                return "Order Placed Successfully";
+            } else {
+                throw new IllegalArgumentException("Product not in stock.");
+            }
+        } finally {
+            inventoryServiceLookup.end();
         }
+
+
 
     }
 
