@@ -1,6 +1,5 @@
 package com.astontech.orderservice.dto;
 
-import com.astontech.orderservice.model.OrderLineItems;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

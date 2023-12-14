@@ -1,7 +1,6 @@
 package com.astontech.inventoryservice.service;
 
 import com.astontech.inventoryservice.dto.InventoryResponse;
-import com.astontech.inventoryservice.model.Inventory;
 import com.astontech.inventoryservice.repository.InventoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -10,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -20,11 +18,9 @@ public class InventoryService {
     private final InventoryRepository inventoryRepository;
 
     @Transactional(readOnly = true)
-//    @SneakyThrows
+    @SneakyThrows
     public List<InventoryResponse> isInStock(List<String> skuCode) {
-//        log.info("Wait Started");
-//        Thread.sleep(10000);
-//        log.info("Wait Ended");
+        log.info("Checking Inventory");
         return inventoryRepository.findBySkuCodeIn(skuCode).stream()
                 .map(inventory ->
                     InventoryResponse.builder()
